@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<!-- saved from url=(0053)http://dtop.powereasy.net/SuperSlide/touchCanvas.html -->
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+
+    <meta name="viewport" content="width=device-width,user-scalable=no">
+    <meta name="description" content="javascript移动设备触屏画板 - 大话主席">
+    <title>ds</title>
+    <link rel="stylesheet" type="text/css" href="assets/css/index.css">
+    <link href="http://cdn.static.runoob.com/libs/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <!--弹幕聊天信息css-->
+    <link rel="stylesheet" type="text/css" href="assets/css/bullet-screen.css">
+    <style type="text/css"></style>
+    <script src="../../大三第二学期/002-杂记.js"></script>
+</head>
+
+
+<body>
+<!-- 头部 -->
+<header>
+    <h1 class="logo">
+        <span id="roomnum">ds</span>
+        <span id="player"></span>
+        <span id="tips"></span>
+        <span id="leaveTime"></span>
+        <span id="answer"></span>
+    </h1>
+</header>
+
+<div id="content">
+    <div id="panel" style="display: none">
+        <ul id="pen" title="画笔大小">
+            <li class="pen1 cur"><span>1</span></li>
+            <li class="pen2"><span>5</span></li>
+            <li class="pen3"><span>10</span></li>
+        </ul>
+        <dl id="color" title="选择颜色">
+            <dt id="curColor">C</dt>
+            <dd id="selectColor">
+                <ul>
+                    <li style="background-color: rgb(0, 0, 0);">#000</li>
+                    <li style="background-color: rgb(127, 127, 127);">#7F7F7F</li>
+                    <li style="background-color: rgb(136, 0, 21);">#880015</li>
+                    <li style="background-color: rgb(237, 28, 36);">#ED1C24</li>
+                    <li style="background-color: rgb(255, 127, 39);">#FF7F27</li>
+                    <li style="background-color: rgb(255, 242, 0);">#FFF200</li>
+                    <li style="background-color: rgb(34, 177, 76);">#22B14C</li>
+                    <li style="background-color: rgb(0, 162, 232);">#00A2E8</li>
+                    <li style="background-color: rgb(63, 72, 204);">#3F48CC</li>
+                    <li style="background-color: rgb(163, 73, 164);">#A349A4</li>
+
+                    <li style="background-color: rgb(255, 255, 255);">#FFFFFF</li>
+                    <li style="background-color: rgb(195, 195, 195);">#C3C3C3</li>
+                    <li style="background-color: rgb(185, 122, 87);">#B97A57</li>
+                    <li style="background-color: rgb(255, 174, 201);">#FFAEC9</li>
+                    <li style="background-color: rgb(255, 201, 14);">#FFC90E</li>
+                    <li style="background-color: rgb(239, 228, 176);">#EFE4B0</li>
+                    <li style="background-color: rgb(181, 230, 29);">#B5E61D</li>
+                    <li style="background-color: rgb(153, 217, 234);">#99D9EA</li>
+                    <li style="background-color: rgb(112, 146, 190);">#7092BE</li>
+                    <li style="background-color: rgb(200, 191, 231);">#C8BFE7</li>
+                    <li style="background-color: rgb(220, 230, 245);">#DCE6F5</li>
+                </ul>
+            </dd>
+        </dl>
+        <div id="reset" title="清除画板">R</div>
+    </div>
+    <canvas id="canvas" width="1366" height="557"
+            style="display: none;"></canvas>
+    <div>
+        <div style="background-color: #f5ab50">
+            <!--//这里是消息通知栏-->
+            <section class="main" id="returnQuestion" style="height: 20px"></section>
+        </div>
+        <!--当前用户显示-->
+        <div class="col-md-12" id="currentUser">
+
+        </div>
+        <!--用户第一次登陆的状态-->
+        <div class="col-md-12" id="firstStatus">
+
+        </div>
+        <div class="col-md-12" style="margin-top: 5px;display: none" id="submitQuestion">
+            <input type="search" id="input" class="form-control" width="100%" placeholder="请输入你的答案">
+            <button type="button" id="sendQuestion" class="btn btn-primary form-control"
+                    style="margin-top: 10px">提交
+            </button>
+        </div>
+
+    </div>
+</div>
+
+
+<script src="./assets/js/jquery.js"></script>
+<!--layer弹出层插件-->
+<script src="./assets/layer/layer.js"></script>
+
+
+<!--登录连接处理模块-->
+<script>
+    //默认prompt
+    var socket;
+    var context = canvas.getContext("2d");
+    var username;
+    var singleTime = 60;  //每轮单回合游戏时间
+
+    var res = layer.prompt({
+        formType: 0,
+        title: '请输入 游戏名#房间号'
+    }, function (value, index, elem) {
+        //输入游戏名后连接游戏
+        socket = new WebSocket('ws://119.29.37.33:9502/');  //监听端口
+        socket.onopen = function () {  //监听是否连接服务器成功触发
+            username = value.split("#");
+            $("#roomnum").html('房号：' + username['1']);
+            username = username['0'];
+            //发送游戏名到服务器
+            socket.send('{"status":"3","username": "' + value + '"}');
+        };
+        /**
+         * 接收信息监听
+         * */
+        socket.onmessage = function (event) {  // **接收到服务器数据**触发
+//            console.log(event);
+            console.log(event.data);
+            var str = JSON.parse(event.data);
+            /**当前用户登录后等到的个人信息反馈**/
+            if (str.status == "6") {
+                //如果用户为零，代表你是最早来的用户
+                if (str.counter == 1) {
+                    $("#firstStatus").html('<hr/><button type="button" onclick="startGame()" id="startGame" class="btn btn-primary form-control" style="margin-top: 10px">点击开始</button>');
+                } else {
+                    $("#firstStatus").html('<hr/><div class="col-md-12 text-center" style="color: #ccc">等待房主开始~~</div>');
+                }
+            }
+            /**游戏开始广播**/
+            if (str.status == "7") {
+                $('#canvas').show();
+                $('#panel').show();
+                $('#firstStatus').hide();
+                $('#submitQuestion').show();
+                layer.msg('房主' + str.username + ':游戏开始提示,测试阶段');
+            }
+            /**进入游戏后的定时器计算**/
+            if (str.status == "8") {
+                if (str.time) {
+                    if (str.username == username) {
+                        flag = 1;   //允许当前玩家用画笔
+                        $("#answer").html('|answer：' + str.name);  //给当前玩家显示答案
+                    } else {
+                        flag = 0;
+                        $("#answer").html("");  //给当前玩家显示答案
+                    }
+                    var time = singleTime - parseInt(str.time) % singleTime;
+                    if (time == '60') {  //更换任务画时自动清屏
+                        /**换人，即将该盘标识设置重置**/
+                        socket.send('{"status":"10"}');
+                        context.clearRect(0, 0, document.body.clientWidth, canvas.height);
+                        context.beginPath();
+                        context.lineTo(1, 1);
+                        context.stroke();
+                        layer.msg('上轮答案为： ' + str.name);
+                    }
+                    $("#leaveTime").html('|time：' + time);
+                    $("#player").html('|player：' + str.username);
+                    $("#tips").html('|tip：' + str.tips);
+                } else {
+                    $("#leaveTime").html('');
+                    $("#player").html('');
+                    $("#tips").html('');
+                    $("#answer").html('');  //给当前玩家显示答案
+                    layer.msg('游戏结束');
+                    socket.close();    //关闭socket连接
+                }
+            }
+            /**答案文字信息结果接收**/
+            if (str.status == "9") {
+                if (str.is_true == '1') {
+                    randomText(str.username + "答对了，加" + str.mark);
+                    socket.send("");  //随意请求，只是为了更新记录
+                } else {
+                    randomText(str.username + "：" + str.answer);
+                }
+            }
+            /**显示当前房间所有用户信息**/
+            if (str.status == "5") {
+                /**载入当前房间所有用户信息**/
+                var html = '';
+                $.each(str, function (n, val) {
+                    if (n != 'status')
+                        if (username == val['username']) {
+                            html += '<div class="col-xs-3" id="user_' + n + '" style="margin: 0 0 0 0;padding: 0 0 0 0;color: red">'
+                                + val['username'] +
+                                '#<span id="user_mark_' + val['username'] + '">' + val['mark'] + '</span></div>';
+                        } else {
+                            html += '<div class="col-xs-3" id="user_' + n + '" style="margin: 0 0 0 0;padding: 0 0 0 0;">'
+                                + val['username'] +
+                                '#<span id="user_mark_' + val['username'] + '">' + val['mark'] + '</span></div>';
+                        }
+                });
+                $("#currentUser").html(html);
+            }
+            /**其他用户登录广播**/
+            if (str.status == "4") {
+                layer.msg(str.username + '上线了');
+            }
+            //画板清屏11
+            if (str.status == "2") {
+                context.clearRect(0, 0, document.body.clientWidth, canvas.height);
+                context.beginPath();
+                context.lineTo(1, 1);
+                context.stroke();
+            } else {
+                //触碰按下事件
+                if (str.status == "1") {
+                    context.moveTo(parseInt(str.first) - canvT, parseInt(str.second) - canvL);
+                }
+                //触碰拖拉事件
+                context.lineTo(parseInt(str.first) - canvT, parseInt(str.second) - canvL);
+                context.lineWidth = str.penWidth;
+                context.strokeStyle = str.penColor;
+                context.lineCap = "round";
+                //触碰离开事件
+                if (str.status == "0") {
+                    context.stroke();
+                    context.beginPath();
+                    context.lineTo(1, 1);
+                    context.stroke();
+                }
+            }
+        };
+        socket.onclose = function () {  //与服务器连接断开触发
+            console.log('Lost connection!');
+        };
+        socket.onerror = function () { //与服务器连接出现错误触发
+            console.log('Error!');
+        };
+        layer.close(index);
+    });
+
+    /**游戏开始部分处理**/
+    function startGame() {
+        //游戏开始信号
+        socket.send('{"status":"7","username":"' + username + '"}');
+    }
+</script>
+
+<!--画布主函数-->
+<script src="./assets/js/index.js"></script>
+<!--弹幕聊天信息处理-->
+<script src="./assets/layer/bullet-screen.js"></script>
+
+
+</body>
+</html>
